@@ -269,6 +269,9 @@ test_data_generator = random_sine(batch_size=1000,
 y_test_predicted = model.predict([x_encoder_test, x_decoder_test])
 ```
 
+A limitation of using this model to make the predictions is that we can only predict a sequence of same length as the training data. This can be a problem if we want to predict less or more than the training sequence lengths.
+In the next section I will show how to create "prediction" models that allow to predict sequences of arbitrary length.
+
 ## Create "prediction" models
 
 When using the encoder-decoder to predict a sequence of arbitrary length, the encoder first encodes the entire input sequence. The state of the encoder is then fed to the decoder which then produces the output sequence sequentially.
@@ -390,68 +393,6 @@ for index in indices:
 ```
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_0.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_1.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_2.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_3.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_4.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_5.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_6.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_7.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_8.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_9.png)
-
-
-
-```python
-train_data_generator = random_sine(batch_size=1000,
-                                   steps_per_epoch=steps_per_epoch,
-                                   input_sequence_length=input_sequence_length,
-                                   target_sequence_length=target_sequence_length,
-                                   min_frequency=0.1, max_frequency=10,
-                                   min_amplitude=0.1, max_amplitude=1,
-                                   min_offset=-0.5, max_offset=0.5,
-                                   num_signals=num_signals, seed=1969)
-
-(x_train, _), y_train = next(train_data_generator)
-
-y_train_predicted = predict(x_train, encoder_predict_model, decoder_predict_model, num_steps_to_predict)
-
-# Select 10 random examples to plot
-indices = np.random.choice(range(x_train.shape[0]), replace=False, size=10)
-
-for index in indices:
-    plot_prediction(x_train[index, :, :], y_train[index, :, :], y_train_predicted[index, :, :])
-```
-
-
 ![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_0.png)
 
 
@@ -489,6 +430,68 @@ for index in indices:
 
 
 ![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_9.png)
+
+
+
+```python
+train_data_generator = random_sine(batch_size=1000,
+                                   steps_per_epoch=steps_per_epoch,
+                                   input_sequence_length=input_sequence_length,
+                                   target_sequence_length=target_sequence_length,
+                                   min_frequency=0.1, max_frequency=10,
+                                   min_amplitude=0.1, max_amplitude=1,
+                                   min_offset=-0.5, max_offset=0.5,
+                                   num_signals=num_signals, seed=1969)
+
+(x_train, _), y_train = next(train_data_generator)
+
+y_train_predicted = predict(x_train, encoder_predict_model, decoder_predict_model, num_steps_to_predict)
+
+# Select 10 random examples to plot
+indices = np.random.choice(range(x_train.shape[0]), replace=False, size=10)
+
+for index in indices:
+    plot_prediction(x_train[index, :, :], y_train[index, :, :], y_train_predicted[index, :, :])
+```
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_0.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_1.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_2.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_3.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_4.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_5.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_6.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_7.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_8.png)
+
+
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_22_9.png)
 
 
 ## Next steps & Discussion
@@ -541,5 +544,5 @@ Github: https://github.com/LukeTonin/
     [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
     [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
     [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
-    [NbConvertApp] Writing 28396 bytes to keras-seq2seq-signal-prediction.md
+    [NbConvertApp] Writing 30172 bytes to keras-seq2seq-signal-prediction.md
 
