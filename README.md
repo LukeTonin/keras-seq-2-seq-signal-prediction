@@ -39,8 +39,9 @@ As you can see, the basis of the prediction model <strong>f</strong> is a single
 
 There are multiple reasons why this architecture might not be the best for time series prediction, compounding errors is one. However, in my opinion, there is a more important reason as to why it might not be the best method.
 In a time series prediction problem there are intuitively two distinct tasks. Human beings predicting a time series would proceed by looking at the known values of the past, and use their understanding of what happened in the past to predict the future values. These two tasks require two distinct skillsets:
-    1. The ability to look at the past values and create an idea of the state of the system in the present.
-    2. The ability to use that understanding of the state of the system to predict how the system will evolve in the future.
+* The ability to look at the past values and create an idea of the state of the system in the present.
+* The ability to use that understanding of the state of the system to predict how the system will evolve in the future.
+
 By using a single RNN cell in our model we are asking it to be capable of both memorising important events of the past and using these events to predict future values. This is the reasoning behind considering the encoder-decoder for time series prediction. Rather than having a single multi-tasking cell, the model will use two specialised cells. One for memorising important events of the past (encoder) and one for converting the important events into a prediction of the future (decoder).
 
 ![Many to one](notebook_images/many_to_one_3_resized.png "Many to one RNN")
@@ -69,7 +70,7 @@ from utils import random_sine, plot_prediction
     Using TensorFlow backend.
 
 
-## Hyper parameters and model configuration
+## Hyperparameters and model configuration
 This model uses a Gated Recurrent Unit (GRU). Other units (LSTM) would also work with a few modifications to the code.
 
 
@@ -99,11 +100,12 @@ epochs = 15
 
 input_sequence_length = 15 # Length of the sequence used by the encoder
 target_sequence_length = 15 # Length of the sequence predicted by the decoder
+num_steps_to_predict = 20 # Length to use when testing the model
 
 num_signals = 2 # The number of random sine waves the compose the signal. The more sine waves, the harder the problem.
 ```
 
-## Training model
+## Create model
 
 ### Create encoder
 The encoder is first created by instantiating a graph, which is a description of the operations applied
@@ -120,9 +122,9 @@ encoder_inputs = keras.layers.Input(shape=(None, num_input_features))
 encoder_cells = []
 for hidden_neurons in layers:
     encoder_cells.append(keras.layers.GRUCell(hidden_neurons,
-                              kernel_regularizer=regulariser,
-                              recurrent_regularizer=regulariser,
-                              bias_regularizer=regulariser))
+                                              kernel_regularizer=regulariser,
+                                              recurrent_regularizer=regulariser,
+                                              bias_regularizer=regulariser))
 
 encoder = keras.layers.RNN(encoder_cells, return_state=True)
 
@@ -147,9 +149,9 @@ decoder_inputs = keras.layers.Input(shape=(None, 1))
 decoder_cells = []
 for hidden_neurons in layers:
     decoder_cells.append(keras.layers.GRUCell(hidden_neurons,
-                              kernel_regularizer=regulariser,
-                              recurrent_regularizer=regulariser,
-                              bias_regularizer=regulariser))
+                                              kernel_regularizer=regulariser,
+                                              recurrent_regularizer=regulariser,
+                                              bias_regularizer=regulariser))
 
 decoder = keras.layers.RNN(decoder_cells, return_sequences=True, return_state=True)
 
@@ -172,7 +174,7 @@ decoder_outputs = decoder_dense(decoder_outputs)
 
 ### Create model and compile
 
-A notable detail here, are the inputs to the model. The train model has two inputs : encoder_inputs and decoder inputs. What encoder_inputs should be is clear, the encoder_inputs should hold the input series. But what about the decoder inputs?
+A notable detail here, are the inputs to the model. The train model has two inputs : encoder_inputs and decoder_inputs. What encoder_inputs should be is clear, the encoder_inputs should hold the input series. But what about the decoder inputs?
 
 In machine translation applications (see "A ten minute introduction to sequence-to-sequence learning in keras") something called teacher forcing is used. In teacher forcing, the input to the decoder during training is the target sequence shifted by 1. This supposedly helps the decoder learn and is an effective method for machine translation. I tested teacher forcing for sequence prediction and the results were bad. I am not entirely sure why this is the case, my intuition is that unlike machine translation, if you feed the decoder the correct sequence shifted by one, your model becomes "lazy" because it only has to look at the value input in the step before and apply a small modification to it. In other words, the gradients of the truncated back propagation beyond the n-1 step will be very small and the model will develop a short memory. However, if the input to the decoder is 0, it forces the model to really memorize the values that are fed to the encoder since it has nothing else to work on. In some sense, teacher forcing might artificially induce vanishing gradients.
 
@@ -183,79 +185,96 @@ I suggest you look into the random_sine function of the utils module of this rep
 # Create a model using the functional API provided by Keras.
 # The functional API is great, it gives an amazing amount of freedom in architecture of your NN.
 # A read worth your time: https://keras.io/getting-started/functional-api-guide/ 
-train_model = keras.models.Model(inputs=[encoder_inputs, decoder_inputs], outputs=decoder_outputs)
-train_model.compile(optimizer=optimiser, loss=loss)
+model = keras.models.Model(inputs=[encoder_inputs, decoder_inputs], outputs=decoder_outputs)
+model.compile(optimizer=optimiser, loss=loss)
 
 ```
 
-## Fit training model to data
+## Fit model to data
 I like using the fit_generator in Keras. In this case it's not really useful/necessary since my training examples easily fit into memory. In cases when the training data doesn't fit into memory, the fit_generator is definitely the way to go.
-A standard python generator is usually fine for the fit_generator function, however, Keras provides a nice class keras.utils.Sequence that you can inherit from to create your own generator. This is a requirement to guarantee that the elements of the generator are only selected once in the case of multiprocessing (which isn't guarenteed with the standard generator). A simple example of using the data generators in Keras is ["A detailed example of how to use data generators with Keras"](https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly.html) by Shervine Amidi.
+A standard python generator is usually fine for the fit_generator function, however, Keras provides a nice class keras.utils.Sequence that you can inherit from to create your own generator. This is a requirement to guarantee that the elements of the generator are only selected once in the case of multiprocessing (which isn't guaranteed with the standard generator). A simple example of using the data generators in Keras is ["A detailed example of how to use data generators with Keras"](https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly.html) by Shervine Amidi.
 
 
 ```python
 # random_sine returns a generator that produces batches of training samples ([encoder_input, decoder_input], decoder_output)
 # You can play with the min max frequencies of the sine waves, the number of sine waves that are summed etc...
-# Another interesing exercise could be to see whether the model generalises well one sums of 3 signals if it's only been
+# Another interesing exercise could be to see whether the model generalises well on sums of 3 signals if it's only been
 # trained on sums of 2 signals...
 train_data_generator = random_sine(batch_size=batch_size,
-                                      steps_per_epoch=steps_per_epoch,
-                                      input_sequence_length=input_sequence_length,
-                                      target_sequence_length=target_sequence_length,
-                                      min_frequency=0.1, max_frequency=10,
-                                      min_amplitude=0.1, max_amplitude=1,
-                                      min_offset=-0.5, max_offset=0.5,
-                                      num_signals=num_signals, seed=1969)
+                                   steps_per_epoch=steps_per_epoch,
+                                   input_sequence_length=input_sequence_length,
+                                   target_sequence_length=target_sequence_length,
+                                   min_frequency=0.1, max_frequency=10,
+                                   min_amplitude=0.1, max_amplitude=1,
+                                   min_offset=-0.5, max_offset=0.5,
+                                   num_signals=num_signals, seed=1969)
 
-train_model.fit_generator(train_data_generator, steps_per_epoch=steps_per_epoch, epochs=epochs)
+model.fit_generator(train_data_generator, steps_per_epoch=steps_per_epoch, epochs=epochs)
 ```
 
     Epoch 1/15
-    200/200 [==============================] - 35s 175ms/step - loss: 0.2808
+    200/200 [==============================] - 16s 82ms/step - loss: 0.2681
     Epoch 2/15
-    200/200 [==============================] - 35s 176ms/step - loss: 0.1829
+    200/200 [==============================] - 14s 69ms/step - loss: 0.1782
     Epoch 3/15
-    200/200 [==============================] - 31s 157ms/step - loss: 0.1640
+    200/200 [==============================] - 14s 68ms/step - loss: 0.1572
     Epoch 4/15
-    200/200 [==============================] - 31s 154ms/step - loss: 0.1462
+    200/200 [==============================] - 14s 68ms/step - loss: 0.1193
     Epoch 5/15
-    200/200 [==============================] - 33s 165ms/step - loss: 0.1026
+    200/200 [==============================] - 14s 69ms/step - loss: 0.0740
     Epoch 6/15
-    200/200 [==============================] - 33s 165ms/step - loss: 0.0649
+    200/200 [==============================] - 14s 69ms/step - loss: 0.0540
     Epoch 7/15
-    200/200 [==============================] - 32s 161ms/step - loss: 0.0484
+    200/200 [==============================] - 13s 63ms/step - loss: 0.0451
     Epoch 8/15
-    200/200 [==============================] - 32s 159ms/step - loss: 0.0422
+    200/200 [==============================] - 14s 68ms/step - loss: 0.0385
     Epoch 9/15
-    200/200 [==============================] - 34s 169ms/step - loss: 0.0365
+    200/200 [==============================] - 13s 66ms/step - loss: 0.0348
     Epoch 10/15
-    200/200 [==============================] - 34s 168ms/step - loss: 0.0332
+    200/200 [==============================] - 13s 66ms/step - loss: 0.0313
     Epoch 11/15
-    200/200 [==============================] - 32s 160ms/step - loss: 0.0303
+    200/200 [==============================] - 13s 65ms/step - loss: 0.0290
     Epoch 12/15
-    200/200 [==============================] - 32s 160ms/step - loss: 0.0280
+    200/200 [==============================] - 13s 67ms/step - loss: 0.0274
     Epoch 13/15
-    200/200 [==============================] - 32s 161ms/step - loss: 0.0265
+    200/200 [==============================] - 13s 65ms/step - loss: 0.0266
     Epoch 14/15
-    200/200 [==============================] - 32s 158ms/step - loss: 0.0249
+    200/200 [==============================] - 14s 69ms/step - loss: 0.0257
     Epoch 15/15
-    200/200 [==============================] - 36s 179ms/step - loss: 0.0241
+    200/200 [==============================] - 14s 68ms/step - loss: 0.0238
 
 
 
 
 
-    <keras.callbacks.History at 0x7eff140df278>
+    <keras.callbacks.History at 0x7fdf00c932b0>
 
 
 
-## Create predict models
-Separate models must be created to train and predict.
+It is now possible to use this model to make predictions:
 
-This is because the training process and the predict process of the model are different.
-While training the encoder-decoder receives the entire input and output sequence and calculates the gradients based on the whole output sequence.
-In prediction mode, the encoder first encodes the entire input sequence. The state of the encoder is then fed as initial state to the decoder which then produces the output sequence sequentially.
-The layers that were trained previously are used to create the predict models in order to keep the trained weights of the RNN.
+
+```python
+test_data_generator = random_sine(batch_size=1000,
+                                  steps_per_epoch=steps_per_epoch,
+                                  input_sequence_length=input_sequence_length,
+                                  target_sequence_length=target_sequence_length,
+                                  min_frequency=0.1, max_frequency=10,
+                                  min_amplitude=0.1, max_amplitude=1,
+                                  min_offset=-0.5, max_offset=0.5,
+                                  num_signals=num_signals, seed=2000)
+
+(x_encoder_test, x_decoder_test), y_test = next(test_data_generator) # x_decoder_test is composed of zeros.
+
+y_test_predicted = model.predict([x_encoder_test, x_decoder_test])
+```
+
+## Create "prediction" models
+
+When using the encoder-decoder to predict a sequence of arbitrary length, the encoder first encodes the entire input sequence. The state of the encoder is then fed to the decoder which then produces the output sequence sequentially.
+Although a new model is being created with the keras.models.Model class, the input and output tensors of the model are the same as those used during training, hence the weights of the layers applied to the tensors are preserved.
+
+As you will see, creating the prediction models also gives the ability to inspect the state of the model at different points throughout the prediction process. We could study how the encoder creates a representation of the input data. For instance, how does the model represent the offset? Or the frequency? Does it decompose the signal into it's constituent sine waves and represent them as different dimensions of the state vector? These are very interesting questions for another time.
 
 
 ```python
@@ -273,6 +292,7 @@ for hidden_neurons in layers[::-1]:
 
 decoder_outputs_and_states = decoder(
     decoder_inputs, initial_state=decoder_states_inputs)
+
 decoder_outputs = decoder_outputs_and_states[0]
 decoder_states = decoder_outputs_and_states[1:]
 
@@ -349,15 +369,14 @@ test_data_generator = random_sine(batch_size=1000,
                                   min_frequency=0.1, max_frequency=10,
                                   min_amplitude=0.1, max_amplitude=1,
                                   min_offset=-0.5, max_offset=0.5,
-                                  num_signals=num_signals, seed=1991)
+                                  num_signals=num_signals, seed=2000)
 
 (x_test, _), y_test = next(test_data_generator)
 ```
 
 
 ```python
-y_test_predicted = predict(x_test, encoder_predict_model, decoder_predict_model, target_sequence_length)
-print(y_test_predicted.shape)
+y_test_predicted = predict(x_test, encoder_predict_model, decoder_predict_model, num_steps_to_predict)
 
 # Select 10 random examples to plot
 indices = np.random.choice(range(x_test.shape[0]), replace=False, size=10)
@@ -370,63 +389,60 @@ for index in indices:
 # to make a good estimation of the frequency components.
 ```
 
-    (1000, 15, 1)
+
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_0.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_1.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_1.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_2.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_2.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_3.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_3.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_4.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_4.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_5.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_5.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_6.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_6.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_7.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_7.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_8.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_8.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_9.png)
-
-
-
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_18_10.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_20_9.png)
 
 
 
 ```python
 train_data_generator = random_sine(batch_size=1000,
-                                  steps_per_epoch=steps_per_epoch,
-                                  input_sequence_length=input_sequence_length,
-                                  target_sequence_length=target_sequence_length,
-                                  min_frequency=0.1, max_frequency=10,
-                                  min_amplitude=0.1, max_amplitude=1,
-                                  min_offset=-0.5, max_offset=0.5,
-                                  num_signals=num_signals, seed=1969)
+                                   steps_per_epoch=steps_per_epoch,
+                                   input_sequence_length=input_sequence_length,
+                                   target_sequence_length=target_sequence_length,
+                                   min_frequency=0.1, max_frequency=10,
+                                   min_amplitude=0.1, max_amplitude=1,
+                                   min_offset=-0.5, max_offset=0.5,
+                                   num_signals=num_signals, seed=1969)
 
 (x_train, _), y_train = next(train_data_generator)
 
-y_train_predicted = predict(x_train, encoder_predict_model, decoder_predict_model, target_sequence_length)
+y_train_predicted = predict(x_train, encoder_predict_model, decoder_predict_model, num_steps_to_predict)
 
 # Select 10 random examples to plot
 indices = np.random.choice(range(x_train.shape[0]), replace=False, size=10)
@@ -436,52 +452,55 @@ for index in indices:
 ```
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_0.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_0.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_1.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_1.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_2.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_2.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_3.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_3.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_4.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_4.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_5.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_5.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_6.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_6.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_7.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_7.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_8.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_8.png)
 
 
 
-![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_19_9.png)
+![png](keras-seq2seq-signal-prediction_files/keras-seq2seq-signal-prediction_21_9.png)
 
 
-## Next steps
+## Next steps & Discussion
 
 There are many things that could be done to either extend or improve this model. Here are a few ideas.
 
 * There's no reason why the encoder and decoder should have the same complexity or the same number of layers. As well as doing a simple hyper parameter search, it could be interesting to implement a model with different encoder and decoder sizes. To do this, one would have to add a dense layer after retrieving the states of the encoder to transform them into the correct size.
 * Encapsulate the encoder-decoder by creating a class with a fit/predict interface. This is actually something I have done, it's extremely useful as it allows to instantiate seq2seq models as easily as one would instantiate a scikit learn model.
-* Add the ability to add context vectors to the state of output by the encoder. The encoder is able to produce an input vector for the decoder based on the time series. It is possible to add constant features to the model by duplicating them at each input timestep. However, adding the ability to extend the encoder output state with a constant vector that represents context might also be a good idea (for example, if you're predicting the evolution of housing prices, you might want to tell your model which geographical area you are in, since prices might not evolve in the same manner depending on location). This is not the attention mechanism often used in NLP that also produces what is called a context vector(a context vector that is updated at each step of the decoder). But since adding attention to NLP seq2seq applications has hugely improved state of the art. It might also be worth looking into attention for sequence prediction.
+* Add the ability to add context vectors to the state output by the encoder. The encoder is able to produce an input vector for the decoder based on the time series. It is possible to add constant features to the model by duplicating them at each input timestep. However, adding the ability to extend the encoder output state with a constant vector that represents context might also be a good idea (for example, if you're predicting the evolution of housing prices, you might want to tell your model which geographical area you are in, since prices might not evolve in the same manner depending on location). This is not the attention mechanism often used in NLP that also produces what is called a context vector(a context vector that is updated at each step of the decoder). But since adding attention to NLP seq2seq applications has hugely improved state of the art. It might also be worth looking into attention for sequence prediction.
+* As described above, study how the encoder creates a representation of the input sequence by looking at the state vector.
+* It appears that our model struggles on signals that have low frequency, one explanation might be that the model must "see" at least a certain number of periods to determine the frequency of the signal. An interesting questions to answer might be: How many periods of the constituent signals are required for the model to be accurate?
+* Although our model was only train on an output sequence of length 15, it appears to be able to predict beyond that limit, this is something we can exploit with the prediction models.
 
 ### Thanks for reading :)
 
@@ -500,27 +519,27 @@ Github: https://github.com/LukeTonin/
 !mv keras-seq2seq-signal-prediction.md README.md
 ```
 
-    [NbConvertApp] Converting notebook keras-seq2seq-signal-prediction-v2.ipynb to markdown
-    [NbConvertApp] Support files will be in keras-seq2seq-signal-prediction-v2_files/
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Making directory keras-seq2seq-signal-prediction-v2_files
-    [NbConvertApp] Writing 32108 bytes to keras-seq2seq-signal-prediction-v2.md
+    [NbConvertApp] Converting notebook keras-seq2seq-signal-prediction.ipynb to markdown
+    [NbConvertApp] Support files will be in keras-seq2seq-signal-prediction_files/
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Making directory keras-seq2seq-signal-prediction_files
+    [NbConvertApp] Writing 28396 bytes to keras-seq2seq-signal-prediction.md
 
