@@ -114,8 +114,8 @@ if __name__ == '__main__':
     gen = random_sine(3, 3, 15, 15)
     for i, data in enumerate(gen):
         input_seq, output_seq = data
-        for j in range(input_seq.shape[0]):
-            plot_prediction(input_seq[j, :, :],
+        for j in range(input_seq[0].shape[0]):
+            plot_prediction(input_seq[0][j, :, :],
                             output_seq[j, :, :],
                             output_seq[j, :, :])
         if i > 2:
