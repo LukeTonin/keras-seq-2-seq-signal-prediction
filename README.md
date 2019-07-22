@@ -10,6 +10,8 @@ I drew inspiration from two other posts:
 I strongly recommend visiting Guillaume's repository for some great projects.  
 François Chollet is the primary author and currently the maintainer of Keras. His post presents an implementation of a seq2seq model for machine translation.
 
+This post is also available on [my website](https://awaywithideas.com/keras-implementation-of-a-sequence-to-sequence-model-for-time-series-prediction-using-an-encoder-decoder-architecture/), feel free to visit :)
+
 ## Context
 Time series prediction is a widespread problem. Applications range from price and weather forecasting to biological signal prediction.
 
