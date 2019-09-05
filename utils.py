@@ -113,7 +113,7 @@ if __name__ == '__main__':
     from matplotlib import pyplot as plt
     gen = random_sine(3, 3, 15, 15)
     for i, data in enumerate(gen):
-        input_seq, output_seq = data
+        [input_seq,_], output_seq = data
         for j in range(input_seq.shape[0]):
             plot_prediction(input_seq[j, :, :],
                             output_seq[j, :, :],
